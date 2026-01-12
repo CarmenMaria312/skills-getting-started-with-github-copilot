@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const template = document.getElementById("activity-template");
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -10,24 +11,46 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch("/activities");
       const activities = await response.json();
 
-      // Clear loading message
+      // Clear loading message and list
       activitiesList.innerHTML = "";
+      // Reset select options (keep placeholder)
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
-      // Populate activities list
+      // Populate activities list using template
       Object.entries(activities).forEach(([name, details]) => {
-        const activityCard = document.createElement("div");
-        activityCard.className = "activity-card";
+        const spotsLeft = details.max_participants - (details.participants?.length || 0);
 
-        const spotsLeft = details.max_participants - details.participants.length;
+        const clone = template.content.cloneNode(true);
+        clone.querySelector(".activity-name").textContent = name;
+        clone.querySelector(".description").textContent = details.description || "";
+        clone.querySelector(".schedule").textContent = details.schedule || "";
+        clone.querySelector(".spots-count").textContent = String(spotsLeft);
 
-        activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-        `;
+        const participantsUl = clone.querySelector(".participants-list");
+        const noParticipants = clone.querySelector(".no-participants");
 
-        activitiesList.appendChild(activityCard);
+        // Populate participants
+        participantsUl.innerHTML = "";
+        if (details.participants && details.participants.length > 0) {
+          details.participants.forEach((p) => {
+            const li = document.createElement("li");
+            li.textContent = p;
+            participantsUl.appendChild(li);
+          });
+          noParticipants.hidden = true;
+        } else {
+          noParticipants.hidden = false;
+        }
+
+        // Wire card signup button to pre-select activity and focus email input
+        const cardSignupBtn = clone.querySelector(".signup-btn");
+        cardSignupBtn.addEventListener("click", () => {
+          activitySelect.value = name;
+          document.getElementById("email").focus();
+          document.getElementById("signup-container").scrollIntoView({ behavior: "smooth" });
+        });
+
+        activitiesList.appendChild(clone);
 
         // Add option to select dropdown
         const option = document.createElement("option");
@@ -60,11 +83,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (response.ok) {
         messageDiv.textContent = result.message;
-        messageDiv.className = "success";
+        messageDiv.className = "message success";
         signupForm.reset();
+        // Refresh activities to show updated participants
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+        messageDiv.className = "message error";
       }
 
       messageDiv.classList.remove("hidden");
@@ -75,7 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 5000);
     } catch (error) {
       messageDiv.textContent = "Failed to sign up. Please try again.";
-      messageDiv.className = "error";
+      messageDiv.className = "message error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
     }
